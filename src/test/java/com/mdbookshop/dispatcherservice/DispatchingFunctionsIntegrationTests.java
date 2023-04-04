@@ -3,7 +3,6 @@ package com.mdbookshop.dispatcherservice;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cloud.function.context.FunctionCatalog;
 import org.springframework.cloud.function.context.test.FunctionalSpringBootTest;
 import reactor.core.publisher.Flux;
@@ -11,12 +10,31 @@ import reactor.test.StepVerifier;
 
 import java.util.function.Function;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
+
 @FunctionalSpringBootTest
 @Disabled("These tests are only necessary when using the functions alone (no bindings)")
 public class DispatchingFunctionsIntegrationTests {
 
     @Autowired
     private FunctionCatalog catalog;
+
+    @Test
+    void packOrder() {
+        Function<OrderAcceptedMessage,Long> pack = catalog.lookup(Function.class,"pack");
+        long orderId = 113;
+        assertThat(pack.apply(new OrderAcceptedMessage(orderId))).isEqualTo(orderId);
+    }
+
+    @Test
+    void labelOrder() {
+        Function<Flux<Long>, Flux<OrderDispatchedMessage>> label = catalog.lookup(Function.class, "label");
+        Flux<Long> orderId = Flux.just(113L);
+        StepVerifier.create(label.apply(orderId))
+                .expectNextMatches(dispatchedOrder -> dispatchedOrder.equals(new OrderDispatchedMessage(113L)))
+                .verifyComplete();
+    }
 
     @Test
     void packAndLabelOrder() {
